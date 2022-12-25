@@ -3,6 +3,9 @@ import numpy as np
 # Set the random seed to 0 for reproducibility and testing purposes
 np.random.seed(0)
 
+# Define the clip value to use when calculating the loss. This is used to avoid taking the log of 0, which would result in infinity.
+CLIP_VALUE = 1e-7
+
 # Create a spiral dataset to train the neural network on (classification). From https://cs231n.github.io/neural-networks-case-study/
 def spiral_data(points, classes):
     X = np.zeros((points * classes, 2))
@@ -46,6 +49,33 @@ class ActivationSoftmax:
         self.output = probabilities
 
 
+class Loss:
+    def calculate(self, output, y):
+        # Calculate the sample losses
+        sampleLosses = self.forward(output, y)
+        # Calculate the mean loss for the batch to use as the loss value for backpropagation
+        dataLoss = np.mean(sampleLosses)
+        return dataLoss
+
+
+class LossCategoricalCrossEntropy(Loss):
+    def forward(self, yPred, yTrue):
+        samples = len(yPred)
+        # Clip the data to prevent taking the log of 0. Clip both sides to not drag mean towards any value.
+        yPredClipped = np.clip(yPred, CLIP_VALUE, 1 - CLIP_VALUE)
+
+        # Probabilities for target values if categorical labels
+        if len(yTrue.shape) == 1:
+            correctConfidences = yPredClipped[range(samples), yTrue]
+        # Probabilities for target values if one-hot encoded labels
+        elif len(yTrue.shape) == 2:
+            correctConfidences = np.sum(yPredClipped * yTrue, axis=1)
+
+        # Calculate the negative log likelihood for the loss
+        negativeLogLikelihoods = -np.log(correctConfidences)
+        return negativeLogLikelihoods
+
+
 # Create a spiral dataset with 100 points and 3 classes. The size of the dataset is 300 x 2, and the size of the labels is 300 x 1.
 X, y = spiral_data(100, 3)
 
@@ -68,4 +98,7 @@ dense2.forward(activation1.output)
 # Perform a forward pass through the softmax activation function in the second layer
 activation2.forward(dense2.output)
 
-print(activation2.output[:5])
+lossFunction = LossCategoricalCrossEntropy()
+# Calculate the loss from the output of activation2 and y
+loss = lossFunction.calculate(activation2.output, y)
+print(f"Loss: {loss}")
