@@ -3,9 +3,6 @@ import numpy as np
 # Set the random seed to 0 for reproducibility and testing purposes
 np.random.seed(0)
 
-# Define the clip value to use when calculating the loss. This is used to avoid taking the log of 0, which would result in infinity.
-CLIP_VALUE = 1e-7
-
 # Create a spiral dataset to train the neural network on (classification). From https://cs231n.github.io/neural-networks-case-study/
 def spiral_data(points, classes):
     X = np.zeros((points * classes, 2))
@@ -32,12 +29,31 @@ class LayerDense:
     def forward(self, inputs):
         # Take the dot product of inputs and weights and add biases to calculate the output of a forward pass
         self.output = np.dot(inputs, self.weights) + self.biases
+        # Keep track of the inputs for backpropagation
+        self.inputs = inputs
+
+    def backward(self, dvalues):
+        # The gradient of the loss with respect to the weights is the dot product of the inputs and the gradient of the loss with respect to the outputs of the current layer.
+        # The gradient of the loss with respect to the outputs of the current layer is the dvalues argument that is passed into the backward method.
+        self.dweights = np.dot(self.inputs.T, dvalues)
+        # The gradient of the loss with respect to the biases is the sum of the gradient of the loss with respect to the outputs of the current layer.
+        # This is because the partial derivative of the loss with respect to the bias is 1.
+        self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+        # The gradient of the loss with respect to the inputs is the dot product of the gradient of the loss with respect to the outputs of the current layer and the transposed weights.
+        # This is similar to the gradient of the loss with respect to the weights, but the order of the inputs and weights is reversed.
+        self.dinputs = np.dot(dvalues, self.weights.T)
 
 
 class ActivationReLU:
     def forward(self, inputs):
         # Calculate the output values from inputs. The ReLU activation function returns 0 for any input value less than 0, and returns the input for any input value greater than or equal to 0.
         self.output = np.maximum(0, inputs)
+
+    def backward(self, dvalues):
+        # Create a copy of the dvalues array. This is because we will be modifying the values in the array.
+        self.dinputs = dvalues.copy()
+        # Set all of the negative values in the array to 0. This is because the ReLU activation function returns 0 for any input value less than 0.
+        self.dinputs[self.inputs <= 0] = 0
 
 
 class ActivationSoftmax:
@@ -47,6 +63,24 @@ class ActivationSoftmax:
         # Normalize the values by dividing by the sum of the exponential values. The sum of the output values is 1.
         probabilities = expValues / np.sum(expValues, axis=1, keepdims=True)
         self.output = probabilities
+
+    def backward(self, dvalues):
+        # Create an uninitialized array of the same shape as the gradient of the loss with respect to the outputs of the current layer.
+        self.dinputs = np.empty_like(dvalues)
+
+        for index, (singleOutput, singleDvalues) in enumerate(
+            zip(self.output, dvalues)
+        ):
+            # Flatten the output array
+            singleOutput = singleOutput.reshape(-1, 1)
+            # Calculate the Jacobian matrix of the output. The Jacobian matrix is a matrix containing the sample-wise partial derivatives of the output values.
+            # Create a diagonal matrix from the output array with values along the diagonal equal to the output values.
+            # Then multiply the softmax outputs. Take the dot product of the output array and the transpose of the output array since the output array is a row vector.
+            jacobianMatrix = np.diagflat(singleOutput) - np.dot(
+                singleOutput, singleOutput.T
+            )
+            # Calculate the sample-wise gradient and add it to the array of sample gradients
+            self.dinputs[index] = np.dot(jacobianMatrix, singleDvalues)
 
 
 class Loss:
@@ -59,10 +93,17 @@ class Loss:
 
 
 class LossCategoricalCrossEntropy(Loss):
+    # Define the clip value to use when calculating the loss. This is used to avoid taking the log of 0, which would result in infinity.
+    CLIP_VALUE = 1e-7
+
     def forward(self, yPred, yTrue):
         samples = len(yPred)
         # Clip the data to prevent taking the log of 0. Clip both sides to not drag mean towards any value.
-        yPredClipped = np.clip(yPred, CLIP_VALUE, 1 - CLIP_VALUE)
+        yPredClipped = np.clip(
+            yPred,
+            LossCategoricalCrossEntropy.CLIP_VALUE,
+            1 - LossCategoricalCrossEntropy.CLIP_VALUE,
+        )
 
         # Probabilities for target values if categorical labels
         if len(yTrue.shape) == 1:
@@ -74,6 +115,23 @@ class LossCategoricalCrossEntropy(Loss):
         # Calculate the negative log likelihood for the loss
         negativeLogLikelihoods = -np.log(correctConfidences)
         return negativeLogLikelihoods
+
+    def backward(self, dvalues, yTrue):
+        # The number of samples
+        samples = len(dvalues)
+        # The number of labels in each sample
+        labels = len(samples[0])
+
+        # Convert categorical labels to one-hot encoded labels.
+        if len(yTrue.shape) == 1:
+            # Create an identity matrix of shape (labels, labels), and pass in the yTrue array to convert it into a
+            # one-hot encoded array (this will shift the diagonal ones according to the indexes from the categorical labels).
+            yTrue = np.eye(labels)[yTrue]
+
+        # The gradient of the categorical cross-entropy loss with respect to the output of the softmax activation function ends up being: -yTrue / dvalues
+        self.dinputs = -yTrue / dvalues
+        # Normalize the gradient. They will eventually be summed
+        self.dinputs /= samples
 
 
 # Create a spiral dataset with 100 points and 3 classes. The size of the dataset is 300 x 2, and the size of the labels is 300 x 1.
