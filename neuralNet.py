@@ -120,7 +120,7 @@ class LossCategoricalCrossEntropy(Loss):
         # The number of samples
         samples = len(dvalues)
         # The number of labels in each sample
-        labels = len(samples[0])
+        labels = len(dvalues[0])
 
         # Convert categorical labels to one-hot encoded labels.
         if len(yTrue.shape) == 1:
@@ -131,6 +131,39 @@ class LossCategoricalCrossEntropy(Loss):
         # The gradient of the categorical cross-entropy loss with respect to the output of the softmax activation function ends up being: -yTrue / dvalues
         self.dinputs = -yTrue / dvalues
         # Normalize the gradient. They will eventually be summed
+        self.dinputs /= samples
+
+
+class ActivationSoftmax_LossCategoricalCrossEntropy:
+    def __init__(self):
+        # Create an activation property equal to a softmax activation function
+        self.activation = ActivationSoftmax()
+        # Create a loss property equal to a categorical cross-entropy loss function
+        self.loss = LossCategoricalCrossEntropy()
+
+    def forward(self, inputs, yTrue):
+        # Call the forward method of the softmax activation function
+        self.activation.forward(inputs)
+        # Store the output of the softmax activation function
+        self.output = self.activation.output
+        # Return the loss value using the output of the softmax activation function and the true labels
+        return self.loss.calculate(self.output, yTrue)
+
+    def backward(self, dvalues, yTrue):
+        # The number of samples
+        samples = len(dvalues)
+
+        # Check to see if the labels are one-hot encoded
+        if len(yTrue.shape) == 2:
+            # If so, convert them into discrete values by taking the index of the largest value in each row
+            yTrue = np.argmax(yTrue, axis=1)
+
+        # Copy the gradient from the next layer
+        self.dinputs = dvalues.copy()
+        # Calculate the gradient by selecting the values from dinputs that correspond to the true labels and subtracting 1 from them.
+        # This will result in the gradient being 0 for the correct label and -1 for the incorrect labels.
+        self.dinputs[range(samples), yTrue] -= 1
+        # Normalize the gradient. This will eventually be summed
         self.dinputs /= samples
 
 
