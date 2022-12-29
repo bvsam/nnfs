@@ -1,4 +1,8 @@
 import numpy as np
+import nnfs
+
+# Initialize the nnfs library for reproducibility and testing purposes
+nnfs.init()
 
 # Set the random seed to 0 for reproducibility and testing purposes
 np.random.seed(0)
@@ -21,16 +25,16 @@ def spiral_data(points, classes):
 
 class LayerDense:
     def __init__(self, n_inputs, n_neurons):
-        # Initialize weights to random values of shape (n_inputs, n_neurons). Multiply by 0.1 (the standard deviation) to reduce the size of the initial weights.
-        self.weights = 0.10 * np.random.randn(n_inputs, n_neurons)
+        # Initialize weights to random values of shape (n_inputs, n_neurons). Multiply by 0.01 (the standard deviation) to reduce the size of the initial weights.
+        self.weights = 0.01 * np.random.randn(n_inputs, n_neurons)
         # Initialize biases to zeros of shape (1, n_neurons)
         self.biases = np.zeros((1, n_neurons))
 
     def forward(self, inputs):
-        # Take the dot product of inputs and weights and add biases to calculate the output of a forward pass
-        self.output = np.dot(inputs, self.weights) + self.biases
         # Keep track of the inputs for backpropagation
         self.inputs = inputs
+        # Take the dot product of inputs and weights and add biases to calculate the output of a forward pass
+        self.output = np.dot(inputs, self.weights) + self.biases
 
     def backward(self, dvalues):
         # The gradient of the loss with respect to the weights is the dot product of the inputs and the gradient of the loss with respect to the outputs of the current layer.
@@ -46,6 +50,8 @@ class LayerDense:
 
 class ActivationReLU:
     def forward(self, inputs):
+        # Keep track of the inputs for backpropagation
+        self.inputs = inputs
         # Calculate the output values from inputs. The ReLU activation function returns 0 for any input value less than 0, and returns the input for any input value greater than or equal to 0.
         self.output = np.maximum(0, inputs)
 
@@ -58,6 +64,8 @@ class ActivationReLU:
 
 class ActivationSoftmax:
     def forward(self, inputs):
+        # Keep track of the inputs for backpropagation
+        self.inputs = inputs
         # Reduce the input values by subtracting the maximum value to avoid overflow when exponentiating. Then exponentiate the inputs to get the exponential values.
         expValues = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
         # Normalize the values by dividing by the sum of the exponential values. The sum of the output values is 1.
@@ -177,8 +185,8 @@ activation1 = ActivationReLU()
 
 # Create a second dense layer with 3 input features (as we take the output of the first layer here) and 3 output values (for the 3 classes of the spiral dataset)
 dense2 = LayerDense(3, 3)
-# Create a softmax activation (to be used with the second dense layer):
-activation2 = ActivationSoftmax()
+# Create a combined activation and loss function object
+lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Perform a forward pass of our training data through this layer
 dense1.forward(X)
@@ -186,10 +194,29 @@ dense1.forward(X)
 activation1.forward(dense1.output)
 # Perform a forward pass through the second dense layer
 dense2.forward(activation1.output)
-# Perform a forward pass through the softmax activation function in the second layer
-activation2.forward(dense2.output)
+# Perform a forward pass through the combined activation and loss method, and store the calculated loss
+loss = lossActivation.forward(dense2.output, y)
 
-lossFunction = LossCategoricalCrossEntropy()
-# Calculate the loss from the output of activation2 and y
-loss = lossFunction.calculate(activation2.output, y)
+# Print the first few values of the output of the network, along with the calculated loss
+print(lossActivation.output[:5])
 print(f"Loss: {loss}")
+
+# Calculate the model's accuracy and print it
+predictions = np.argmax(lossActivation.output, axis=1)
+if len(y.shape) == 2:
+    y = np.argmax(y, axis=1)
+accuracy = np.mean(predictions == y)
+print(f"Accuracy: {accuracy}")
+
+# Perform a backward pass through the combined activation and loss method
+lossActivation.backward(lossActivation.output, y)
+# Perform a backward pass through the rest of the dense layers and activation functions
+dense2.backward(lossActivation.dinputs)
+activation1.backward(dense2.dinputs)
+dense1.backward(activation1.dinputs)
+
+# Print the calculated gradients
+print(dense1.dweights)
+print(dense1.dbiases)
+print(dense2.dweights)
+print(dense2.dbiases)
