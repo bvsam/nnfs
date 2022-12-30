@@ -13,3 +13,5 @@ So far, the following features of neural networks have been implemented:
 - Categorical Cross-Entropy Loss
 - Forward propagation
 - Backpropagation and gradient calculation
+- Stochastic Gradient Descent optimizer with momentum and learning rate decay
+- Adagrad optimizer with learning rate decay
