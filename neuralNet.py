@@ -200,8 +200,8 @@ class OptimizerSGD:
     def updateParams(self, layer):
         # Update the layer's weights and biases by multiplying the learning rate by the gradients of the weights and biases
         # Subtraction is used here because a positive gradient indicates a direction of ascent, and we want to move in the opposite direction
-        layer.weights -= self.learningRate * layer.dweights
-        layer.biases -= self.learningRate * layer.dbiases
+        layer.weights -= self.currentLearningRate * layer.dweights
+        layer.biases -= self.currentLearningRate * layer.dbiases
 
     def postUpdateParams(self):
         # Increment the number of iterations after updating the parameters
