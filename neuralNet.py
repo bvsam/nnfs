@@ -179,7 +179,7 @@ class ActivationSoftmax_LossCategoricalCrossEntropy:
 
 
 class OptimizerSGD:
-    def __init__(self, learningRate=1.0, decay=0.0):
+    def __init__(self, learningRate=1.0, decay=0.0, momentum=0.0):
         # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
         self.learningRate = learningRate
         # The self.currentLearningRate property will be used to update the learning rate during training
@@ -188,6 +188,8 @@ class OptimizerSGD:
         self.decay = decay
         # Keep track of the number of parameter updates that have been done
         self.iterations = 0
+        # Set the momentum value. A higher value weights the previous update more
+        self.momentum = momentum
 
     def preUpdateParams(self):
         # If decay isn't 0, then reduce the learning rate by multiplying it by
@@ -198,10 +200,40 @@ class OptimizerSGD:
             )
 
     def updateParams(self, layer):
-        # Update the layer's weights and biases by multiplying the learning rate by the gradients of the weights and biases
-        # Subtraction is used here because a positive gradient indicates a direction of ascent, and we want to move in the opposite direction
-        layer.weights -= self.currentLearningRate * layer.dweights
-        layer.biases -= self.currentLearningRate * layer.dbiases
+        # If momentum is not 0, and is being used
+        if self.momentum:
+            # Check to see if the layer already momentum properties for the weights
+            if not hasattr(layer, "weightMomentums"):
+                # If not, create it and initialize it with zeros
+                layer.weightMomentums = np.zeros_like(layer.weights)
+                # This is also done for the bias momentums since they wouldn't be created without the weight momentums
+                layer.biasMomentums = np.zeros_like(layer.biases)
+
+            # Calculate the value to update the weights by. This is done by multiplying the momentum value by the previous weight
+            # momentums, and subtracting the current gradient multiplied by the learning rate. A higher value will allow the previous
+            # weight update to have a larger affect on the current one (shifts it)
+            weightUpdates = (
+                self.momentum * layer.weightMomentums
+                - self.currentLearningRate * layer.dweights
+            )
+            # Set the layer's weight momentums to the weight updates for the next iteration
+            layer.weightMomentums = weightUpdates
+
+            # Perform the same process for the bias updates as was done for the weight updates
+            biasUpdates = (
+                self.momentum * layer.biasMomentums
+                - self.currentLearningRate * layer.dbiases
+            )
+            layer.biasMomentums = biasUpdates
+        # If momentum is not being used
+        else:
+            # Update the layer's weights and biases by multiplying the learning rate by the gradients of the weights and biases
+            weightUpdates = -self.currentLearningRate * layer.dweights
+            biasUpdates = -self.currentLearningRate * layer.dbiases
+
+        # Update the layer's weights and biases using weightUpdates and biasUpdates respectively
+        layer.weights += weightUpdates
+        layer.biases += biasUpdates
 
     def postUpdateParams(self):
         # Increment the number of iterations after updating the parameters
@@ -222,7 +254,7 @@ dense2 = LayerDense(64, 3)
 lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Create an optimizer object
-optimizer = OptimizerSGD(decay=1e-3)
+optimizer = OptimizerSGD(decay=1e-3, momentum=0.5)
 
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer
