@@ -24,6 +24,10 @@ def spiral_data(points, classes):
 
 
 class LayerDense:
+    """
+    The LayerDense class represents a fully connected layer. Each neuron takes the inputs from the previous layer, multiplies them by the weights, and adds the biases.
+    """
+
     def __init__(self, n_inputs, n_neurons):
         # Initialize weights to random values of shape (n_inputs, n_neurons). Multiply by 0.01 (the standard deviation) to reduce the size of the initial weights.
         self.weights = 0.01 * np.random.randn(n_inputs, n_neurons)
@@ -51,6 +55,10 @@ class LayerDense:
 
 
 class ActivationReLU:
+    """
+    The ReLU activation function returns 0 for any input value less than 0, and returns the input for any input value greater than or equal to 0.
+    """
+
     def forward(self, inputs):
         # Keep track of the inputs for backpropagation
         self.inputs = inputs
@@ -66,6 +74,11 @@ class ActivationReLU:
 
 
 class ActivationSoftmax:
+    """
+    The softmax activation function takes a set of values and normalizes them into a probability distribution.
+    This is done by dividing each value in the set by the sum of all of the values in the set.
+    """
+
     def forward(self, inputs):
         # Keep track of the inputs for backpropagation
         self.inputs = inputs
@@ -95,6 +108,10 @@ class ActivationSoftmax:
 
 
 class Loss:
+    """
+    Base class for loss functions. This will allow the mean loss to be calculated for the batch.
+    """
+
     def calculate(self, output, y):
         # Calculate the sample losses
         sampleLosses = self.forward(output, y)
@@ -104,6 +121,11 @@ class Loss:
 
 
 class LossCategoricalCrossEntropy(Loss):
+    """
+    The categorical cross-entropy loss function calculates the loss between the predicted probabilities and the true labels.
+    For a classification problem, this is done by taking the negative log of the predicted probability of the true label.
+    """
+
     # Define the clip value to use when calculating the loss. This is used to avoid taking the log of 0, which would result in infinity.
     CLIP_VALUE = 1e-7
 
@@ -146,6 +168,12 @@ class LossCategoricalCrossEntropy(Loss):
 
 
 class ActivationSoftmax_LossCategoricalCrossEntropy:
+    """
+    This class combines the softmax activation function and the categorical cross-entropy loss function into a single class.
+    This allows for the forward and backward methods to be called in a single line of code, and it also allows for the gradient of the loss with
+    respect to the inputs of the softmax activation function to be calculated more efficiently.
+    """
+
     def __init__(self):
         # Create an activation property equal to a softmax activation function
         self.activation = ActivationSoftmax()
@@ -179,6 +207,10 @@ class ActivationSoftmax_LossCategoricalCrossEntropy:
 
 
 class OptimizerSGD:
+    """
+    The Stochastic Gradient Descent (SGD) optimizer implements stochastic gradient descent with support for momentum and learning rate decay.
+    """
+
     def __init__(self, learningRate=1.0, decay=0.0, momentum=0.0):
         # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
         self.learningRate = learningRate
@@ -240,6 +272,62 @@ class OptimizerSGD:
         self.iterations += 1
 
 
+class OptimizerAdagrad:
+    """
+    The Adagrad optimizer uses a per-parameter learning rate instead of a global learning rate. Parameters that have been updated more
+    overall will have their learning rate reduced faster than parameters that have been updated by smaller amounts overall.
+    """
+
+    def __init__(self, learningRate=1.0, decay=0.0, epsilon=1e-7):
+        # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
+        self.learningRate = learningRate
+        # The self.currentLearningRate property will be used to update the learning rate during training
+        self.currentLearningRate = learningRate
+        # Set the decay rate, which will determine how much the learning rate will be reduced during each update
+        self.decay = decay
+        # Keep track of the number of parameter updates that have been done
+        self.iterations = 0
+        # Set the epsilon value. This is just used to prevent divisions by 0
+        self.epsilon = epsilon
+
+    def preUpdateParams(self):
+        # If decay isn't 0, then reduce the learning rate by multiplying it by
+        # 1 / (1 + decay * iterations), which decreases over time
+        if self.decay:
+            self.currentLearningRate = self.learningRate * (
+                1.0 / (1.0 + self.decay * self.iterations)
+            )
+
+    def updateParams(self, layer):
+        # If the weight cache hasn't been created yet, create it along with the bias cache
+        if not hasattr(layer, "weightCache"):
+            layer.weightCache = np.zeros_like(layer.weights)
+            layer.biasCache = np.zeros_like(layer.biases)
+
+        # Update the weight and bias cache with the squared current gradients. This is done to increase large gradients and decrease small gradients,
+        # while also removing negative gradients (which would affect the square roots of the cache)
+        layer.weightCache += layer.dweights**2
+        layer.biasCache += layer.dbiases**2
+
+        # Update the weights and biases normally by multiplying the learning rate by the gradients, however divide by the square
+        # root of the cache (plus epsilon to prevent division by 0). This is done to update the weights and biases at a slower rate for the parameters
+        # that are updated less frequently, and a faster rate for the parameters that are updated more frequently
+        layer.weights += (
+            -self.currentLearningRate
+            * layer.dweights
+            / (np.sqrt(layer.weightCache) + self.epsilon)
+        )
+        layer.biases += (
+            -self.currentLearningRate
+            * layer.dbiases
+            / (np.sqrt(layer.biasCache) + self.epsilon)
+        )
+
+    def postUpdateParams(self):
+        # Increment the number of iterations after updating the parameters
+        self.iterations += 1
+
+
 # Create a spiral dataset with 100 points and 3 classes. The size of the dataset is 300 x 2, and the size of the labels is 300 x 1.
 X, y = spiral_data(100, 3)
 
@@ -254,7 +342,7 @@ dense2 = LayerDense(64, 3)
 lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Create an optimizer object
-optimizer = OptimizerSGD(decay=1e-3, momentum=0.9)
+optimizer = OptimizerAdagrad(decay=1e-4)
 
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer
