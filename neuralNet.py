@@ -37,13 +37,15 @@ class LayerDense:
         self.output = np.dot(inputs, self.weights) + self.biases
 
     def backward(self, dvalues):
-        # The gradient of the loss with respect to the weights is the dot product of the inputs and the gradient of the loss with respect to the outputs of the current layer.
+        # The gradient of the loss with respect to the weights is the dot product of the inputs and the gradient of the loss with respect to the
+        # outputs of the current layer.
         # The gradient of the loss with respect to the outputs of the current layer is the dvalues argument that is passed into the backward method.
         self.dweights = np.dot(self.inputs.T, dvalues)
         # The gradient of the loss with respect to the biases is the sum of the gradient of the loss with respect to the outputs of the current layer.
         # This is because the partial derivative of the loss with respect to the bias is 1.
         self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
-        # The gradient of the loss with respect to the inputs is the dot product of the gradient of the loss with respect to the outputs of the current layer and the transposed weights.
+        # The gradient of the loss with respect to the inputs is the dot product of the gradient of the loss with respect to the outputs of the
+        # current layer and the transposed weights.
         # This is similar to the gradient of the loss with respect to the weights, but the order of the inputs and weights is reversed.
         self.dinputs = np.dot(dvalues, self.weights.T)
 
@@ -52,7 +54,8 @@ class ActivationReLU:
     def forward(self, inputs):
         # Keep track of the inputs for backpropagation
         self.inputs = inputs
-        # Calculate the output values from inputs. The ReLU activation function returns 0 for any input value less than 0, and returns the input for any input value greater than or equal to 0.
+        # Calculate the output values from inputs. The ReLU activation function returns 0 for any input value less than 0, and returns the
+        # input for any input value greater than or equal to 0.
         self.output = np.maximum(0, inputs)
 
     def backward(self, dvalues):
@@ -176,15 +179,33 @@ class ActivationSoftmax_LossCategoricalCrossEntropy:
 
 
 class OptimizerSGD:
-    def __init__(self, learningRate=1.0):
-        # Set the learning rate
+    def __init__(self, learningRate=1.0, decay=0.0):
+        # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
         self.learningRate = learningRate
+        # The self.currentLearningRate property will be used to update the learning rate during training
+        self.currentLearningRate = learningRate
+        # Set the decay rate, which will determine how much the learning rate will be reduced during each update
+        self.decay = decay
+        # Keep track of the number of parameter updates that have been done
+        self.iterations = 0
+
+    def preUpdateParams(self):
+        # If decay isn't 0, then reduce the learning rate by multiplying it by
+        # 1 / (1 + decay * iterations), which decreases over time
+        if self.decay:
+            self.currentLearningRate = self.learningRate * (
+                1.0 / (1.0 + self.decay * self.iterations)
+            )
 
     def updateParams(self, layer):
         # Update the layer's weights and biases by multiplying the learning rate by the gradients of the weights and biases
         # Subtraction is used here because a positive gradient indicates a direction of ascent, and we want to move in the opposite direction
         layer.weights -= self.learningRate * layer.dweights
         layer.biases -= self.learningRate * layer.dbiases
+
+    def postUpdateParams(self):
+        # Increment the number of iterations after updating the parameters
+        self.iterations += 1
 
 
 # Create a spiral dataset with 100 points and 3 classes. The size of the dataset is 300 x 2, and the size of the labels is 300 x 1.
@@ -201,7 +222,7 @@ dense2 = LayerDense(64, 3)
 lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Create an optimizer object
-optimizer = OptimizerSGD()
+optimizer = OptimizerSGD(decay=1e-3)
 
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer
@@ -226,6 +247,7 @@ for epoch in range(10001):
         Epoch: {epoch}
         Accuracy: {accuracy:.3f}
         Loss: {loss:.3f}
+        Learning Rate: {optimizer.currentLearningRate}
         """
         )
 
@@ -237,5 +259,7 @@ for epoch in range(10001):
     dense1.backward(activation1.dinputs)
 
     # Update the weights and biases using the optimizer
+    optimizer.preUpdateParams()
     optimizer.updateParams(dense1)
     optimizer.updateParams(dense2)
+    optimizer.postUpdateParams()
