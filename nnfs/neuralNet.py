@@ -311,7 +311,71 @@ class OptimizerAdagrad:
 
         # Update the weights and biases normally by multiplying the learning rate by the gradients, however divide by the square
         # root of the cache (plus epsilon to prevent division by 0). This is done to update the weights and biases at a slower rate for the parameters
-        # that are updated less frequently, and a faster rate for the parameters that are updated more frequently
+        # that are updated more frequently, and a faster rate for the parameters that are updated less frequently
+        layer.weights += (
+            -self.currentLearningRate
+            * layer.dweights
+            / (np.sqrt(layer.weightCache) + self.epsilon)
+        )
+        layer.biases += (
+            -self.currentLearningRate
+            * layer.dbiases
+            / (np.sqrt(layer.biasCache) + self.epsilon)
+        )
+
+    def postUpdateParams(self):
+        # Increment the number of iterations after updating the parameters
+        self.iterations += 1
+
+
+class OptimizerRMSprop:
+    """
+    The Root Mean Square Propagation (RMSprop) uses a per-parameter learning rate instead of a global learning rate similar to Adagrad.
+    Parameters that have been updated more overall will be updated less than parameters that have been updated by a smaller amount overall.
+    Unlike Adagrad, RMSprop uses a weighted average of the current gradient and the previous gradients to calculate the caches
+    for the weights and biases, which are then used to calculate the per-parameter learning rate.
+    """
+
+    def __init__(self, learningRate=0.001, decay=0.0, epsilon=1e-7, rho=0.9):
+        # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
+        self.learningRate = learningRate
+        # The self.currentLearningRate property will be used to update the learning rate during training
+        self.currentLearningRate = learningRate
+        # Set the decay rate, which will determine how much the learning rate will be reduced during each update
+        self.decay = decay
+        # Keep track of the number of parameter updates that have been done
+        self.iterations = 0
+        # Set the epsilon value. This is just used to prevent divisions by 0
+        self.epsilon = epsilon
+        # Set the rho value. This is used to calculate the weighted average of the squared gradients
+        self.rho = rho
+
+    def preUpdateParams(self):
+        # If decay isn't 0, then reduce the learning rate by multiplying it by
+        # 1 / (1 + decay * iterations), which decreases over time
+        if self.decay:
+            self.currentLearningRate = self.learningRate * (
+                1.0 / (1.0 + self.decay * self.iterations)
+            )
+
+    def updateParams(self, layer):
+        # If the weight cache hasn't been created yet, create it along with the bias cache
+        if not hasattr(layer, "weightCache"):
+            layer.weightCache = np.zeros_like(layer.weights)
+            layer.biasCache = np.zeros_like(layer.biases)
+
+        # Update the caches according to the RMSprop formula. The cache is multiplied by rho, and the squared gradients are multiplied by 1 - rho.
+        # The cache is then set to the weighted sum of the previous cache and the squared gradients.
+        layer.weightCache = (
+            self.rho * layer.weightCache + (1 - self.rho) * layer.dweights**2
+        )
+        layer.biasCache = (
+            self.rho * layer.biasCache + (1 - self.rho) * layer.dbiases**2
+        )
+
+        # Update the weights and biases similar to the method used in the Adagrad optimizer.
+        # Divide the gradients by the square root of the cache (plus epsilon to prevent division by 0) to update the weights and biases at a
+        # slower rate for the parameters that are updated more frequently, and a faster rate for the parameters that are updated less frequently
         layer.weights += (
             -self.currentLearningRate
             * layer.dweights
@@ -342,7 +406,7 @@ dense2 = LayerDense(64, 3)
 lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Create an optimizer object
-optimizer = OptimizerAdagrad(decay=1e-4)
+optimizer = OptimizerRMSprop(learningRate=0.02, decay=1e-5, rho=0.999)
 
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer

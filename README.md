@@ -6,6 +6,8 @@ This project was based off the [neural networks from scratch tutorial](https://w
 
 ## Features
 
+The neural network uses Numpy whenever possible for more efficient matrix calculations.
+
 So far, the following features of neural networks have been implemented:
 
 - Dense layers
@@ -14,4 +16,5 @@ So far, the following features of neural networks have been implemented:
 - Forward propagation
 - Backpropagation and gradient calculation
 - Stochastic Gradient Descent optimizer with momentum and learning rate decay
-- Adagrad optimizer with learning rate decay
+- Adaptive Gradient (Adagrad) optimizer with learning rate decay
+- Root Mean Square Propagation (RMSProp) optimizer with learning rate decay
