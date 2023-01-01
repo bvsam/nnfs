@@ -392,6 +392,93 @@ class OptimizerRMSprop:
         self.iterations += 1
 
 
+class OptimizerAdam:
+    """
+    The Adam optimizer is a combination of the RMSprop and Momentum optimizers. It uses a per-parameter learning rate instead of a global learning rate.
+    """
+
+    def __init__(
+        self, learningRate=0.001, decay=0.0, epsilon=1e-7, beta1=0.9, beta2=0.999
+    ):
+        # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
+        self.learningRate = learningRate
+        # The self.currentLearningRate property will be used to update the learning rate during training
+        self.currentLearningRate = learningRate
+        # Set the decay rate, which will determine how much the learning rate will be reduced during each update
+        self.decay = decay
+        # Keep track of the number of parameter updates that have been done
+        self.iterations = 0
+        # Set the epsilon value. This is just used to prevent divisions by 0
+        self.epsilon = epsilon
+        self.beta1 = beta1
+        self.beta2 = beta2
+
+    def preUpdateParams(self):
+        # If decay isn't 0, then reduce the learning rate by multiplying it by
+        # 1 / (1 + decay * iterations), which decreases over time
+        if self.decay:
+            self.currentLearningRate = self.learningRate * (
+                1.0 / (1.0 + self.decay * self.iterations)
+            )
+
+    def updateParams(self, layer):
+        # If the weight cache hasn't been created yet, create it along with the bias cache, the weight momentums and the bias momentums
+        if not hasattr(layer, "weightCache"):
+            layer.weightMomentums = np.zeros_like(layer.weights)
+            layer.biasMomentums = np.zeros_like(layer.biases)
+            layer.weightCache = np.zeros_like(layer.weights)
+            layer.biasCache = np.zeros_like(layer.biases)
+
+        # Update the momentums with the current gradients multiplied by beta1 and the previous momentums multiplied by 1 - beta1.
+        # This creates a weighted average of the current and previous gradients.
+        layer.weightMomentums = (
+            self.beta1 * layer.weightMomentums + (1 - self.beta1) * layer.dweights
+        )
+        layer.biasMomentums = (
+            self.beta1 * layer.biasMomentums + (1 - self.beta1) * layer.dbiases
+        )
+
+        # The corrected momentums are calculated by dividing the momentums by 1 - beta1^iterations. This compensates for the
+        # fact that the momentums are initialized with 0s. The corrected momentums will be large multiples of the momentums during the initial iterations, but will
+        # eventually approach the actual momentums as (1 - beta1^iterations) approaches 1.
+        weightMomentumsCorrected = layer.weightMomentums / (
+            1 - self.beta1 ** (self.iterations + 1)
+        )
+        biasMomentumsCorrected = layer.biasMomentums / (
+            1 - self.beta1 ** (self.iterations + 1)
+        )
+
+        # The weight and bias caches are updated in the same way as the RMSprop optimizer, with beta2 instead of rho.
+        layer.weightCache = (
+            self.beta2 * layer.weightCache + (1 - self.beta2) * layer.dweights**2
+        )
+        layer.biasCache = (
+            self.beta2 * layer.biasCache + (1 - self.beta2) * layer.dbiases**2
+        )
+
+        # The corrected caches are calculated in the same way as the corrected momentums.
+        weightCacheCorrected = layer.weightCache / (
+            1 - self.beta2 ** (self.iterations + 1)
+        )
+        biasCacheCorrected = layer.biasCache / (1 - self.beta2 ** (self.iterations + 1))
+
+        # The weights and biases are updated in the same way as the RMSprop optimizer, but using the corrected momentums and caches.
+        layer.weights += (
+            -self.currentLearningRate
+            * weightMomentumsCorrected
+            / (np.sqrt(weightCacheCorrected) + self.epsilon)
+        )
+        layer.biases += (
+            -self.currentLearningRate
+            * biasMomentumsCorrected
+            / (np.sqrt(biasCacheCorrected) + self.epsilon)
+        )
+
+    def postUpdateParams(self):
+        # Increment the number of iterations after updating the parameters
+        self.iterations += 1
+
+
 # Create a spiral dataset with 100 points and 3 classes. The size of the dataset is 300 x 2, and the size of the labels is 300 x 1.
 X, y = spiral_data(100, 3)
 
@@ -406,7 +493,7 @@ dense2 = LayerDense(64, 3)
 lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Create an optimizer object
-optimizer = OptimizerRMSprop(learningRate=0.02, decay=1e-5, rho=0.999)
+optimizer = OptimizerAdam(learningRate=0.06, decay=5e-8)
 
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer

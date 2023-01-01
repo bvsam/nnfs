@@ -15,6 +15,8 @@ So far, the following features of neural networks have been implemented:
 - Categorical Cross-Entropy Loss
 - Forward propagation
 - Backpropagation and gradient calculation
-- Stochastic Gradient Descent optimizer with momentum and learning rate decay
-- Adaptive Gradient (Adagrad) optimizer with learning rate decay
-- Root Mean Square Propagation (RMSProp) optimizer with learning rate decay
+- Optimizers with learning rate decay
+  - Stochastic Gradient Descent (SGD) optimizer with momentum
+  - Adaptive Gradient (Adagrad) optimizer
+  - Root Mean Square Propagation (RMSProp) optimizer
+  - Adaptive Momentum (Adam) optimizer
