@@ -206,12 +206,13 @@ class ActivationSoftmax_LossCategoricalCrossEntropy:
         self.dinputs /= samples
 
 
-class OptimizerSGD:
+class Optimizer:
     """
-    The Stochastic Gradient Descent (SGD) optimizer implements stochastic gradient descent with support for momentum and learning rate decay.
+    Base class for optimizers. This class initializes common parameters. It also allows for iteration tracking and the
+    updating of the learning rate (if decay is used) during training with the preUpdateParams and postUpdateParams methods, respectively.
     """
 
-    def __init__(self, learningRate=1.0, decay=0.0, momentum=0.0):
+    def __init__(self, learningRate=1.0, decay=0.0):
         # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
         self.learningRate = learningRate
         # The self.currentLearningRate property will be used to update the learning rate during training
@@ -220,8 +221,6 @@ class OptimizerSGD:
         self.decay = decay
         # Keep track of the number of parameter updates that have been done
         self.iterations = 0
-        # Set the momentum value. A higher value weights the previous update more
-        self.momentum = momentum
 
     def preUpdateParams(self):
         # If decay isn't 0, then reduce the learning rate by multiplying it by
@@ -230,6 +229,22 @@ class OptimizerSGD:
             self.currentLearningRate = self.learningRate * (
                 1.0 / (1.0 + self.decay * self.iterations)
             )
+
+    def postUpdateParams(self):
+        # Increment the number of iterations after updating the parameters
+        self.iterations += 1
+
+
+class OptimizerSGD(Optimizer):
+    """
+    The Stochastic Gradient Descent (SGD) optimizer implements stochastic gradient descent with support for momentum and learning rate decay.
+    """
+
+    def __init__(self, learningRate=1.0, decay=0.0, momentum=0.0):
+        # Call the parent class's constructor to initialize the the learningRate, currentLearningRate, decay and iterations properties
+        super().__init__(learningRate, decay)
+        # Set the momentum value. A higher value weights the previous update more
+        self.momentum = momentum
 
     def updateParams(self, layer):
         # If momentum is not 0, and is being used
@@ -267,36 +282,18 @@ class OptimizerSGD:
         layer.weights += weightUpdates
         layer.biases += biasUpdates
 
-    def postUpdateParams(self):
-        # Increment the number of iterations after updating the parameters
-        self.iterations += 1
 
-
-class OptimizerAdagrad:
+class OptimizerAdagrad(Optimizer):
     """
     The Adagrad optimizer uses a per-parameter learning rate instead of a global learning rate. Parameters that have been updated more
     overall will have their learning rate reduced faster than parameters that have been updated by smaller amounts overall.
     """
 
     def __init__(self, learningRate=1.0, decay=0.0, epsilon=1e-7):
-        # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
-        self.learningRate = learningRate
-        # The self.currentLearningRate property will be used to update the learning rate during training
-        self.currentLearningRate = learningRate
-        # Set the decay rate, which will determine how much the learning rate will be reduced during each update
-        self.decay = decay
-        # Keep track of the number of parameter updates that have been done
-        self.iterations = 0
+        # Call the parent class's constructor to initialize the the learningRate, currentLearningRate, decay and iterations properties
+        super().__init__(learningRate, decay)
         # Set the epsilon value. This is just used to prevent divisions by 0
         self.epsilon = epsilon
-
-    def preUpdateParams(self):
-        # If decay isn't 0, then reduce the learning rate by multiplying it by
-        # 1 / (1 + decay * iterations), which decreases over time
-        if self.decay:
-            self.currentLearningRate = self.learningRate * (
-                1.0 / (1.0 + self.decay * self.iterations)
-            )
 
     def updateParams(self, layer):
         # If the weight cache hasn't been created yet, create it along with the bias cache
@@ -323,12 +320,8 @@ class OptimizerAdagrad:
             / (np.sqrt(layer.biasCache) + self.epsilon)
         )
 
-    def postUpdateParams(self):
-        # Increment the number of iterations after updating the parameters
-        self.iterations += 1
 
-
-class OptimizerRMSprop:
+class OptimizerRMSprop(Optimizer):
     """
     The Root Mean Square Propagation (RMSprop) uses a per-parameter learning rate instead of a global learning rate similar to Adagrad.
     Parameters that have been updated more overall will be updated less than parameters that have been updated by a smaller amount overall.
@@ -337,26 +330,12 @@ class OptimizerRMSprop:
     """
 
     def __init__(self, learningRate=0.001, decay=0.0, epsilon=1e-7, rho=0.9):
-        # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
-        self.learningRate = learningRate
-        # The self.currentLearningRate property will be used to update the learning rate during training
-        self.currentLearningRate = learningRate
-        # Set the decay rate, which will determine how much the learning rate will be reduced during each update
-        self.decay = decay
-        # Keep track of the number of parameter updates that have been done
-        self.iterations = 0
+        # Call the parent class's constructor to initialize the the learningRate, currentLearningRate, decay and iterations properties
+        super().__init__(learningRate, decay)
         # Set the epsilon value. This is just used to prevent divisions by 0
         self.epsilon = epsilon
         # Set the rho value. This is used to calculate the weighted average of the squared gradients
         self.rho = rho
-
-    def preUpdateParams(self):
-        # If decay isn't 0, then reduce the learning rate by multiplying it by
-        # 1 / (1 + decay * iterations), which decreases over time
-        if self.decay:
-            self.currentLearningRate = self.learningRate * (
-                1.0 / (1.0 + self.decay * self.iterations)
-            )
 
     def updateParams(self, layer):
         # If the weight cache hasn't been created yet, create it along with the bias cache
@@ -387,12 +366,8 @@ class OptimizerRMSprop:
             / (np.sqrt(layer.biasCache) + self.epsilon)
         )
 
-    def postUpdateParams(self):
-        # Increment the number of iterations after updating the parameters
-        self.iterations += 1
 
-
-class OptimizerAdam:
+class OptimizerAdam(Optimizer):
     """
     The Adaptive Momentum (Adam) optimizer is similar to RMSprop but also implements momentum. It also essentially uses a per-parameter
     learning rate (using a cache of the previous gradient updates) instead of a global learning rate.
@@ -401,26 +376,14 @@ class OptimizerAdam:
     def __init__(
         self, learningRate=0.001, decay=0.0, epsilon=1e-7, beta1=0.9, beta2=0.999
     ):
-        # Set the initial learning rate. This will be used as a reference, and won't be updated during training.
-        self.learningRate = learningRate
-        # The self.currentLearningRate property will be used to update the learning rate during training
-        self.currentLearningRate = learningRate
-        # Set the decay rate, which will determine how much the learning rate will be reduced during each update
-        self.decay = decay
-        # Keep track of the number of parameter updates that have been done
-        self.iterations = 0
+        # Call the parent class's constructor to initialize the the learningRate, currentLearningRate, decay and iterations properties
+        super().__init__(learningRate, decay)
         # Set the epsilon value. This is just used to prevent divisions by 0
         self.epsilon = epsilon
+        # Set the beta1 value. This is used to calculate the weighted average of the gradients for the momentums
         self.beta1 = beta1
+        # Set the beta2 value. This is used to calculate the weighted average of the squared gradients for the cache
         self.beta2 = beta2
-
-    def preUpdateParams(self):
-        # If decay isn't 0, then reduce the learning rate by multiplying it by
-        # 1 / (1 + decay * iterations), which decreases over time
-        if self.decay:
-            self.currentLearningRate = self.learningRate * (
-                1.0 / (1.0 + self.decay * self.iterations)
-            )
 
     def updateParams(self, layer):
         # If the weight cache hasn't been created yet, create it along with the bias cache, the weight momentums and the bias momentums
@@ -474,10 +437,6 @@ class OptimizerAdam:
             * biasMomentumsCorrected
             / (np.sqrt(biasCacheCorrected) + self.epsilon)
         )
-
-    def postUpdateParams(self):
-        # Increment the number of iterations after updating the parameters
-        self.iterations += 1
 
 
 # Create a spiral dataset with 100 points and 3 classes. The size of the dataset is 300 x 2, and the size of the labels is 300 x 1.
