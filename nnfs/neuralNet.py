@@ -394,7 +394,8 @@ class OptimizerRMSprop:
 
 class OptimizerAdam:
     """
-    The Adam optimizer is a combination of the RMSprop and Momentum optimizers. It uses a per-parameter learning rate instead of a global learning rate.
+    The Adaptive Momentum (Adam) optimizer is similar to RMSprop but also implements momentum. It also essentially uses a per-parameter
+    learning rate (using a cache of the previous gradient updates) instead of a global learning rate.
     """
 
     def __init__(
