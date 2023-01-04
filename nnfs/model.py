@@ -21,7 +21,7 @@ dense2 = LayerDense(64, 3)
 lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Create an optimizer object
-optimizer = OptimizerAdam(learningRate=0.06, decay=5e-8)
+optimizer = OptimizerAdam(learningRate=0.02, decay=5e-7)
 
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer
@@ -34,9 +34,9 @@ for epoch in range(10001):
     dataLoss = lossActivation.forward(dense2.output, y)
 
     # Calculate the regularization loss, if regularization is used
-    regularizationLoss = lossActivation.regularizationLoss(
+    regularizationLoss = lossActivation.loss.regularizationLoss(
         dense1
-    ) + lossActivation.regularizationLoss(dense2)
+    ) + lossActivation.loss.regularizationLoss(dense2)
 
     # Calculate the overall loss, which is the sum of the data loss and the regularization loss
     loss = dataLoss + regularizationLoss

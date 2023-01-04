@@ -8,7 +8,7 @@ This project was based off the [neural networks from scratch tutorial](https://w
 
 The neural network uses Numpy whenever possible for more efficient matrix calculations.
 
-So far, the following features of neural networks have been implemented:
+So far, the following features of neural networks have been implemented from scratch:
 
 - Dense layers
 - ReLU and Softmax activation functions
@@ -20,3 +20,4 @@ So far, the following features of neural networks have been implemented:
   - Adaptive Gradient (Adagrad) optimizer
   - Root Mean Square Propagation (RMSProp) optimizer
   - Adaptive Momentum (Adam) optimizer
+- L1 and L2 regularization

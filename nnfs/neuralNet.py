@@ -11,6 +11,7 @@ np.random.seed(0)
 class LayerDense:
     """
     The LayerDense class represents a fully connected layer. Each neuron takes the inputs from the previous layer, multiplies them by the weights, and adds the biases.
+    L1 and L2 regularization can also be applied to the weights and biases, which will penalize large weights and biases by increasing the loss ultimately preventing overfitting.
     """
 
     def __init__(
@@ -47,12 +48,18 @@ class LayerDense:
         # This is because the partial derivative of the loss with respect to the bias is 1.
         self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
 
+        # The gradient for L1 regularization is the sign of the weights multiplied by the constant value (lambda) for L1 regularization.
         if self.weightRegularizerL1 > 0:
+            # Create an array of ones of the same shape of the weights
             dL1 = np.ones_like(self.weights)
+            # Set every value in the array to -1 if the corresponding weight is less than 0
             dL1[self.weights < 0] = -1
+            # Multiply the resulting array by the constant value (lambda) and add it to the gradient
             self.dweights += self.weightRegularizerL1 * dL1
+        # The gradient for L2 regularization is the weights multiplied by 2 times the constant value (lambda) for L2 regularization.
         if self.weightRegularizerL2 > 0:
             self.dweights += 2 * self.weightRegularizerL2 * self.weights
+        # Calculate the gradients for L1 and L2 regularization for the biases
         if self.biasRegularizerL1 > 0:
             dL1 = np.ones_like(self.biases)
             dL1[self.biases < 0] = -1
@@ -206,7 +213,7 @@ class LossCategoricalCrossEntropy(Loss):
         self.dinputs /= samples
 
 
-class ActivationSoftmax_LossCategoricalCrossEntropy(Loss):
+class ActivationSoftmax_LossCategoricalCrossEntropy:
     """
     This class combines the softmax activation function and the categorical cross-entropy loss function into a single class.
     This allows for the forward and backward methods to be called in a single line of code, and it also allows for the gradient of the loss with
