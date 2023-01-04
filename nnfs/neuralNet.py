@@ -13,11 +13,24 @@ class LayerDense:
     The LayerDense class represents a fully connected layer. Each neuron takes the inputs from the previous layer, multiplies them by the weights, and adds the biases.
     """
 
-    def __init__(self, n_inputs, n_neurons):
+    def __init__(
+        self,
+        n_inputs,
+        n_neurons,
+        weightRegularizerL1=0,
+        weightRegularizerL2=0,
+        biasRegularizerL1=0,
+        biasRegularizerL2=0,
+    ):
         # Initialize weights to random values of shape (n_inputs, n_neurons). Multiply by 0.01 (the standard deviation) to reduce the size of the initial weights.
         self.weights = 0.01 * np.random.randn(n_inputs, n_neurons)
         # Initialize biases to zeros of shape (1, n_neurons)
         self.biases = np.zeros((1, n_neurons))
+        # Initialize the constant value (lambda) to multiply the weight and bias regularization sum for L1 and L2 regularization
+        self.weightRegularizerL1 = weightRegularizerL1
+        self.weightRegularizerL2 = weightRegularizerL2
+        self.biasRegularizerL1 = biasRegularizerL1
+        self.biasRegularizerL2 = biasRegularizerL2
 
     def forward(self, inputs):
         # Keep track of the inputs for backpropagation
@@ -33,6 +46,20 @@ class LayerDense:
         # The gradient of the loss with respect to the biases is the sum of the gradient of the loss with respect to the outputs of the current layer.
         # This is because the partial derivative of the loss with respect to the bias is 1.
         self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+
+        if self.weightRegularizerL1 > 0:
+            dL1 = np.ones_like(self.weights)
+            dL1[self.weights < 0] = -1
+            self.dweights += self.weightRegularizerL1 * dL1
+        if self.weightRegularizerL2 > 0:
+            self.dweights += 2 * self.weightRegularizerL2 * self.weights
+        if self.biasRegularizerL1 > 0:
+            dL1 = np.ones_like(self.biases)
+            dL1[self.biases < 0] = -1
+            self.dbiases += self.biasRegularizerL1 * dL1
+        if self.biasRegularizerL2 > 0:
+            self.dbiases += 2 * self.biasRegularizerL2 * self.biases
+
         # The gradient of the loss with respect to the inputs is the dot product of the gradient of the loss with respect to the outputs of the
         # current layer and the transposed weights.
         # This is similar to the gradient of the loss with respect to the weights, but the order of the inputs and weights is reversed.
@@ -104,6 +131,33 @@ class Loss:
         dataLoss = np.mean(sampleLosses)
         return dataLoss
 
+    def regularizationLoss(self, layer):
+        regularizationLoss = 0
+
+        # If the layer is using L1 weight regularization, calculate the L1 regularization loss, which is the sum of the absolute values of the
+        # weights in the layer multiplied by the regularization strength, and add it to the total regularization loss
+        if layer.weightRegularizerL1 > 0:
+            regularizationLoss += layer.weightRegularizerL1 * np.sum(
+                np.abs(layer.weights)
+            )
+        # If the layer is using L2 weight regularization, calculate the L2 regularization loss, which is the sum of the squared values of the
+        # weights in the layer multiplied by the regularization strength, and add it to the total regularization loss
+        if layer.weightRegularizerL2 > 0:
+            regularizationLoss += layer.weightRegularizerL2 * np.sum(
+                layer.weights * layer.weights
+            )
+
+        # If the layer is using L1 bias regularization, calculate the L1 regularization loss for the biases and add it to the total regularization loss
+        if layer.biasRegularizerL1 > 0:
+            regularizationLoss += layer.biasRegularizerL1 * np.sum(np.abs(layer.biases))
+        # If the layer is using L2 bias regularization, calculate the L2 regularization loss for the biases and add it to the total regularization loss
+        if layer.biasRegularizerL2 > 0:
+            regularizationLoss += layer.biasRegularizerL2 * np.sum(
+                layer.biases * layer.biases
+            )
+
+        return regularizationLoss
+
 
 class LossCategoricalCrossEntropy(Loss):
     """
@@ -152,7 +206,7 @@ class LossCategoricalCrossEntropy(Loss):
         self.dinputs /= samples
 
 
-class ActivationSoftmax_LossCategoricalCrossEntropy:
+class ActivationSoftmax_LossCategoricalCrossEntropy(Loss):
     """
     This class combines the softmax activation function and the categorical cross-entropy loss function into a single class.
     This allows for the forward and backward methods to be called in a single line of code, and it also allows for the gradient of the loss with
