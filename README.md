@@ -21,3 +21,4 @@ So far, the following features of neural networks have been implemented from scr
   - Root Mean Square Propagation (RMSProp) optimizer
   - Adaptive Momentum (Adam) optimizer
 - L1 and L2 regularization
+- Dropout

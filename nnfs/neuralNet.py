@@ -483,3 +483,32 @@ class OptimizerAdam(Optimizer):
             * biasMomentumsCorrected
             / (np.sqrt(biasCacheCorrected) + self.epsilon)
         )
+
+
+class LayerDropout:
+    """
+    Dropout is a regularization technique that randomly sets the outputs of random neurons to 0 during training. The rate at which the neurons' outputs
+    are set to 0 is the dropout rate. This technique is used to prevent the network from being overly dependent on one neuron. It also helps prevent co-adoption,
+    which is when neurons depend on the output values of other neurons instead of learning the features of the data themselves.
+    """
+
+    def __init__(self, rate):
+        # The rate represents the fraction of neurons that will have their outputs set to 0 (disabled) during training.
+        # Self.rate is set to 1 - the dropout rate, for ease of calculation with numpy.random.binomial
+        self.rate = 1 - rate
+
+    def forward(self, inputs):
+        self.inputs = inputs
+        # Create a binary mask of 0s and 1s, where 1s represent the neurons that will be kept active, and 0s represent the neurons that will be deactivated.
+        # The mask is created by sampling from a binomial distribution with a probability (that the value is 1) of 1 - rate, and a size equal to the input shape.
+        # The mask is then divided by 1 - rate to scale the sum of the layer's outputs to relatively the same value as before dropout was
+        # applied (to allow for successful inference after training with dropout)
+        self.binaryMask = (
+            np.random.binomial(1, self.rate, size=inputs.shape) / self.rate
+        )
+        # Apply the mask to the inputs
+        self.output = inputs * self.binaryMask
+
+    def backward(self, dvalues):
+        # The gradient turns out to be just the gradient from the previous layer, scaled by the binary mask
+        self.dinputs = dvalues * self.binaryMask

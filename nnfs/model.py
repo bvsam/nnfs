@@ -3,17 +3,21 @@ from neuralNet import (
     ActivationReLU,
     ActivationSoftmax_LossCategoricalCrossEntropy,
     OptimizerAdam,
+    LayerDropout,
 )
 from datasets import spiralData
 import numpy as np
 
 # Create a spiral dataset with 100 points and 3 classes. The size of the dataset is 300 x 2, and the size of the labels is 300 x 1.
-X, y = spiralData(100, 3)
+X, y = spiralData(1000, 3)
 
 # Create a dense layer with 2 input features and 64 output values, with L1 and L2 regularization values of 5e-4
 dense1 = LayerDense(2, 64, weightRegularizerL2=5e-4, biasRegularizerL2=5e-4)
 # Create a ReLU activation (to be used with the first dense layer):
 activation1 = ActivationReLU()
+
+# Create a dropout layer with a dropout rate (rate of disabling the neuron) of 0.1
+dropout1 = LayerDropout(0.1)
 
 # Create a second dense layer with 3 input features (as we take the output of the first layer here) and 3 output values (for the 3 classes of the spiral dataset)
 dense2 = LayerDense(64, 3)
@@ -21,15 +25,17 @@ dense2 = LayerDense(64, 3)
 lossActivation = ActivationSoftmax_LossCategoricalCrossEntropy()
 
 # Create an optimizer object
-optimizer = OptimizerAdam(learningRate=0.02, decay=5e-7)
+optimizer = OptimizerAdam(learningRate=0.05, decay=5e-5)
 
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer
     dense1.forward(X)
     # Perform a forward pass through activation function in the first layer
     activation1.forward(dense1.output)
+    # Perform a forward pass through dropout layer
+    dropout1.forward(activation1.output)
     # Perform a forward pass through the second dense layer
-    dense2.forward(activation1.output)
+    dense2.forward(dropout1.output)
     # Perform a forward pass through the combined activation and loss method, then store the calculated data loss
     dataLoss = lossActivation.forward(dense2.output, y)
 
@@ -64,7 +70,8 @@ for epoch in range(10001):
     lossActivation.backward(lossActivation.output, y)
     # Perform a backward pass through the rest of the dense layers and activation functions
     dense2.backward(lossActivation.dinputs)
-    activation1.backward(dense2.dinputs)
+    dropout1.backward(dense2.dinputs)
+    activation1.backward(dropout1.dinputs)
     dense1.backward(activation1.dinputs)
 
     # Update the weights and biases using the optimizer
